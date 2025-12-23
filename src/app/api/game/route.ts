@@ -12,7 +12,7 @@ import {
   resetGame,
   canStartGame,
 } from '@/lib/gameLogic';
-import type { ApiResponse, GameState, Player } from '@/types/game';
+import type { ApiResponse, GameState } from '@/types/game';
 
 // Helper to create JSON response
 function jsonResponse<T>(data: ApiResponse<T>, status = 200) {
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     return jsonResponse({ success: false, error: 'Código de sala requerido' }, 400);
   }
 
-  const game = gameStore.get(roomCode);
+  const game = await gameStore.get(roomCode);
 
   if (!game) {
     return jsonResponse({ success: false, error: 'Sala no encontrada' }, 404);
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         }
 
         const game = createGame(hostName.trim());
-        gameStore.set(game.roomCode, game);
+        await gameStore.set(game.roomCode, game);
 
         const hostPlayer = game.players[0];
         return jsonResponse({
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
           return jsonResponse({ success: false, error: 'Código de sala y nombre requeridos' }, 400);
         }
 
-        const game = gameStore.get(roomCode);
+        const game = await gameStore.get(roomCode);
         if (!game) {
           return jsonResponse({ success: false, error: 'Sala no encontrada' }, 404);
         }
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { game: updatedGame, player } = addPlayer(game, playerName.trim());
-        gameStore.set(roomCode, updatedGame);
+        await gameStore.set(roomCode, updatedGame);
 
         return jsonResponse({
           success: true,
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
 
       case 'updatePlayer': {
         const { roomCode, playerId, team, role } = params;
-        const game = gameStore.get(roomCode);
+        const game = await gameStore.get(roomCode);
 
         if (!game) {
           return jsonResponse({ success: false, error: 'Sala no encontrada' }, 404);
@@ -136,14 +136,14 @@ export async function POST(request: NextRequest) {
         }
 
         const updatedGame = updatePlayer(game, playerId, { team, role });
-        gameStore.set(roomCode, updatedGame);
+        await gameStore.set(roomCode, updatedGame);
 
         return jsonResponse({ success: true, data: { game: updatedGame } });
       }
 
       case 'start': {
         const { roomCode, playerId } = params;
-        const game = gameStore.get(roomCode);
+        const game = await gameStore.get(roomCode);
 
         if (!game) {
           return jsonResponse({ success: false, error: 'Sala no encontrada' }, 404);
@@ -160,14 +160,14 @@ export async function POST(request: NextRequest) {
         }
 
         const updatedGame = startGame(game);
-        gameStore.set(roomCode, updatedGame);
+        await gameStore.set(roomCode, updatedGame);
 
         return jsonResponse({ success: true, data: { game: updatedGame } });
       }
 
       case 'clue': {
         const { roomCode, playerId, word, number } = params;
-        const game = gameStore.get(roomCode);
+        const game = await gameStore.get(roomCode);
 
         if (!game) {
           return jsonResponse({ success: false, error: 'Sala no encontrada' }, 404);
@@ -186,13 +186,13 @@ export async function POST(request: NextRequest) {
           return jsonResponse({ success: false, error }, 400);
         }
 
-        gameStore.set(roomCode, updatedGame);
+        await gameStore.set(roomCode, updatedGame);
         return jsonResponse({ success: true, data: { game: updatedGame } });
       }
 
       case 'guess': {
         const { roomCode, playerId, cardIndex } = params;
-        const game = gameStore.get(roomCode);
+        const game = await gameStore.get(roomCode);
 
         if (!game) {
           return jsonResponse({ success: false, error: 'Sala no encontrada' }, 404);
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
           return jsonResponse({ success: false, error }, 400);
         }
 
-        gameStore.set(roomCode, updatedGame);
+        await gameStore.set(roomCode, updatedGame);
         return jsonResponse({
           success: true,
           data: { game: updatedGame, result },
@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
 
       case 'endTurn': {
         const { roomCode, playerId } = params;
-        const game = gameStore.get(roomCode);
+        const game = await gameStore.get(roomCode);
 
         if (!game) {
           return jsonResponse({ success: false, error: 'Sala no encontrada' }, 404);
@@ -227,13 +227,13 @@ export async function POST(request: NextRequest) {
           return jsonResponse({ success: false, error }, 400);
         }
 
-        gameStore.set(roomCode, updatedGame);
+        await gameStore.set(roomCode, updatedGame);
         return jsonResponse({ success: true, data: { game: updatedGame } });
       }
 
       case 'reset': {
         const { roomCode, playerId } = params;
-        const game = gameStore.get(roomCode);
+        const game = await gameStore.get(roomCode);
 
         if (!game) {
           return jsonResponse({ success: false, error: 'Sala no encontrada' }, 404);
@@ -245,7 +245,7 @@ export async function POST(request: NextRequest) {
         }
 
         const updatedGame = resetGame(game);
-        gameStore.set(roomCode, updatedGame);
+        await gameStore.set(roomCode, updatedGame);
 
         return jsonResponse({ success: true, data: { game: updatedGame } });
       }

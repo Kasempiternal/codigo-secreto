@@ -1,67 +1,70 @@
-// Código Secreto - In-memory game store for Vercel serverless
-// Note: In production, use Vercel KV or Redis for persistence
+// Código Secreto - Game store with Vercel KV for production
+// Uses in-memory fallback for local development
 
+import { kv } from '@vercel/kv';
 import type { GameState } from '@/types/game';
 
-// Use globalThis to persist the Map across hot reloads in development
-// This is necessary because Next.js re-instantiates modules on hot reload
-const globalForGames = globalThis as unknown as {
-  games: Map<string, GameState> | undefined;
-};
+const GAME_PREFIX = 'game:';
+const GAME_TTL = 24 * 60 * 60; // 24 hours in seconds
 
-// In-memory store (resets on cold start, but works for demo)
-// For production: use Vercel KV, Upstash Redis, or similar
-const games = globalForGames.games ?? new Map<string, GameState>();
+// Check if Vercel KV is configured
+const isKVConfigured = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 
-// Persist to globalThis for hot reload survival
-if (process.env.NODE_ENV !== 'production') {
-  globalForGames.games = games;
-}
-
-// Cleanup old games (older than 24 hours)
-function cleanupOldGames() {
-  const now = Date.now();
-  const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-
-  games.forEach((game, code) => {
-    if (now - game.lastActivity > maxAge) {
-      games.delete(code);
-    }
-  });
-}
-
-// Run cleanup periodically
-if (typeof setInterval !== 'undefined') {
-  setInterval(cleanupOldGames, 60 * 60 * 1000); // Every hour
-}
+// In-memory fallback for local development
+const localGames = new Map<string, GameState>();
 
 export const gameStore = {
-  get(roomCode: string): GameState | undefined {
-    return games.get(roomCode.toUpperCase());
+  async get(roomCode: string): Promise<GameState | null> {
+    const key = GAME_PREFIX + roomCode.toUpperCase();
+
+    if (isKVConfigured) {
+      try {
+        const game = await kv.get<GameState>(key);
+        return game;
+      } catch (error) {
+        console.error('KV get error:', error);
+        return null;
+      }
+    }
+
+    // Fallback to in-memory for local dev
+    return localGames.get(roomCode.toUpperCase()) ?? null;
   },
 
-  set(roomCode: string, game: GameState): void {
-    games.set(roomCode.toUpperCase(), game);
+  async set(roomCode: string, game: GameState): Promise<void> {
+    const key = GAME_PREFIX + roomCode.toUpperCase();
+
+    if (isKVConfigured) {
+      try {
+        await kv.set(key, game, { ex: GAME_TTL });
+      } catch (error) {
+        console.error('KV set error:', error);
+      }
+    } else {
+      // Fallback to in-memory for local dev
+      localGames.set(roomCode.toUpperCase(), game);
+    }
   },
 
-  delete(roomCode: string): boolean {
-    return games.delete(roomCode.toUpperCase());
+  async delete(roomCode: string): Promise<boolean> {
+    const key = GAME_PREFIX + roomCode.toUpperCase();
+
+    if (isKVConfigured) {
+      try {
+        const result = await kv.del(key);
+        return result > 0;
+      } catch (error) {
+        console.error('KV delete error:', error);
+        return false;
+      }
+    }
+
+    return localGames.delete(roomCode.toUpperCase());
   },
 
-  has(roomCode: string): boolean {
-    return games.has(roomCode.toUpperCase());
-  },
-
-  getPlayerCount(): number {
-    let count = 0;
-    games.forEach((game) => {
-      count += game.players.length;
-    });
-    return count;
-  },
-
-  getGameCount(): number {
-    return games.size;
+  async has(roomCode: string): Promise<boolean> {
+    const game = await this.get(roomCode);
+    return game !== null;
   },
 };
 

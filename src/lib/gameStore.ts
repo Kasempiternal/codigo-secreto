@@ -1,11 +1,22 @@
 // Código Secreto - In-memory game store for Vercel serverless
 // Note: In production, use Vercel KV or Redis for persistence
 
-import type { GameState, Player } from '@/types/game';
+import type { GameState } from '@/types/game';
+
+// Use globalThis to persist the Map across hot reloads in development
+// This is necessary because Next.js re-instantiates modules on hot reload
+const globalForGames = globalThis as unknown as {
+  games: Map<string, GameState> | undefined;
+};
 
 // In-memory store (resets on cold start, but works for demo)
 // For production: use Vercel KV, Upstash Redis, or similar
-const games = new Map<string, GameState>();
+const games = globalForGames.games ?? new Map<string, GameState>();
+
+// Persist to globalThis for hot reload survival
+if (process.env.NODE_ENV !== 'production') {
+  globalForGames.games = games;
+}
 
 // Cleanup old games (older than 24 hours)
 function cleanupOldGames() {

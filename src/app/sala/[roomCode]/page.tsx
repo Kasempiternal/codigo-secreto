@@ -7,6 +7,8 @@ import { GameBoard } from '@/components/GameBoard';
 import { TeamPanel } from '@/components/TeamPanel';
 import { ClueInput } from '@/components/ClueInput';
 import { QRCode } from '@/components/QRCode';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
+import { PlayerTurnIndicator } from '@/components/PlayerTurnIndicator';
 import type { Team, Role } from '@/types/game';
 
 export default function GameRoom() {
@@ -17,6 +19,11 @@ export default function GameRoom() {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [showQR, setShowQR] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    cardIndex: number;
+    cardWord: string;
+  }>({ isOpen: false, cardIndex: -1, cardWord: '' });
 
   useEffect(() => {
     const storedPlayerId = sessionStorage.getItem('playerId');
@@ -60,12 +67,32 @@ export default function GameRoom() {
     return '';
   };
 
-  // Handle card click
-  const handleCardClick = async (cardIndex: number) => {
+  // Handle card click - show confirmation dialog
+  const handleCardClick = (cardIndex: number) => {
     if (!game || game.phase !== 'playing') return;
     if (!player || player.role !== 'operative') return;
     if (player.team !== game.currentTurn) return;
     if (game.guessesRemaining <= 0) return;
+    if (game.currentPlayerTurn && game.currentPlayerTurn !== playerId) {
+      const currentTurnPlayer = game.players.find(p => p.id === game.currentPlayerTurn);
+      showToast(`Es el turno de ${currentTurnPlayer?.name || 'otro jugador'}`, 'error');
+      return;
+    }
+
+    const card = game.cards[cardIndex];
+    if (card.revealed) return;
+
+    setConfirmDialog({
+      isOpen: true,
+      cardIndex,
+      cardWord: card.word,
+    });
+  };
+
+  // Confirm card selection
+  const handleConfirmGuess = async () => {
+    const { cardIndex } = confirmDialog;
+    setConfirmDialog({ isOpen: false, cardIndex: -1, cardWord: '' });
 
     try {
       const result = await makeGuess(cardIndex);
@@ -81,6 +108,11 @@ export default function GameRoom() {
     } catch (err: any) {
       showToast(err.message || 'Error', 'error');
     }
+  };
+
+  // Cancel card selection
+  const handleCancelGuess = () => {
+    setConfirmDialog({ isOpen: false, cardIndex: -1, cardWord: '' });
   };
 
   // Handle team/role selection
@@ -139,8 +171,10 @@ export default function GameRoom() {
 
   const isSpymaster = player?.role === 'spymaster';
   const isMyTurn = player?.team === game.currentTurn;
-  const canGuess = game.phase === 'playing' && isMyTurn && player?.role === 'operative' && game.guessesRemaining > 0;
+  const isMyPlayerTurn = game.currentPlayerTurn === playerId;
+  const canGuess = game.phase === 'playing' && isMyTurn && player?.role === 'operative' && game.guessesRemaining > 0 && isMyPlayerTurn;
   const canGiveClue = game.phase === 'playing' && isMyTurn && isSpymaster && !game.currentClue;
+  const currentTurnPlayer = game.currentPlayerTurn ? game.players.find(p => p.id === game.currentPlayerTurn) : null;
 
   const redPlayers = game.players.filter(p => p.team === 'red');
   const bluePlayers = game.players.filter(p => p.team === 'blue');
@@ -323,25 +357,27 @@ export default function GameRoom() {
         {/* PLAYING PHASE */}
         {game.phase === 'playing' && (
           <div className="space-y-4">
-            {/* Turn indicator */}
-            <div className={`
-              text-center py-3 rounded-xl
-              ${game.currentTurn === 'red' ? 'bg-red-500/20 border border-red-500/50' : 'bg-blue-500/20 border border-blue-500/50'}
-            `}>
-              <span className="text-white font-bold">
-                Turno: {game.currentTurn === 'red' ? 'Equipo Rojo' : 'Equipo Azul'}
-              </span>
-              {game.currentClue && (
-                <div className="mt-1">
-                  <span className="text-2xl font-bold text-yellow-400">
-                    {game.currentClue.word} {game.currentClue.number}
-                  </span>
-                  <span className="text-slate-400 ml-2">
-                    ({game.guessesRemaining} intentos restantes)
-                  </span>
+            {/* Player Turn Indicator */}
+            <PlayerTurnIndicator
+              currentTeam={game.currentTurn}
+              currentPlayer={currentTurnPlayer || null}
+              isYourTurn={isMyPlayerTurn && player?.role === 'operative' && !!game.currentClue}
+              guessesRemaining={game.guessesRemaining}
+              hasClue={!!game.currentClue}
+            />
+
+            {/* Current Clue Display */}
+            {game.currentClue && (
+              <div className={`
+                text-center py-4 rounded-xl animate-fadeIn
+                ${game.currentTurn === 'red' ? 'bg-red-500/20 border-2 border-red-500' : 'bg-blue-500/20 border-2 border-blue-500'}
+              `}>
+                <div className="text-slate-400 text-sm mb-1">Pista del Jefe de Espías</div>
+                <div className="text-3xl sm:text-4xl font-bold text-yellow-400 animate-pulse">
+                  {game.currentClue.word} <span className="text-white">{game.currentClue.number}</span>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Score panels */}
             <div className="grid grid-cols-2 gap-2 sm:gap-4">
@@ -381,10 +417,32 @@ export default function GameRoom() {
 
             {/* Operative controls */}
             {isMyTurn && player?.role === 'operative' && game.currentClue && (
-              <div className="text-center space-y-2">
-                <p className="text-white">
-                  ¡Toca una carta para adivinar! ({game.guessesRemaining} intentos restantes)
-                </p>
+              <div className={`
+                text-center p-4 rounded-xl space-y-3
+                ${isMyPlayerTurn ? 'bg-yellow-500/10 border-2 border-yellow-500/50 animate-pulse' : 'bg-slate-800/50'}
+              `}>
+                {isMyPlayerTurn ? (
+                  <>
+                    <div className="flex items-center justify-center gap-2 text-yellow-400">
+                      <svg className="w-6 h-6 animate-bounce" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      </svg>
+                      <span className="text-xl font-bold">¡Es tu turno para seleccionar!</span>
+                      <svg className="w-6 h-6 animate-bounce" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                      </svg>
+                    </div>
+                    <p className="text-slate-300">
+                      Toca una carta para adivinar
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-slate-400">
+                    Esperando a que <span className="text-white font-bold">{currentTurnPlayer?.name}</span> seleccione una carta...
+                  </p>
+                )}
+
+                {/* Pass turn button - always visible for operatives on their team's turn */}
                 <button
                   onClick={async () => {
                     try {
@@ -394,24 +452,40 @@ export default function GameRoom() {
                       showToast(err.message || 'Error', 'error');
                     }
                   }}
-                  className="px-6 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors"
+                  className="px-8 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-bold transition-all transform hover:scale-105 shadow-lg"
                 >
-                  Terminar turno
+                  Pasar Turno
                 </button>
               </div>
             )}
 
             {/* Waiting message */}
             {!isMyTurn && (
-              <p className="text-center text-slate-400">
-                Esperando al {game.currentTurn === 'red' ? 'Equipo Rojo' : 'Equipo Azul'}...
-              </p>
+              <div className="text-center p-4 bg-slate-800/30 rounded-xl">
+                <div className="flex items-center justify-center gap-2 text-slate-400">
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Esperando al {game.currentTurn === 'red' ? 'Equipo Rojo' : 'Equipo Azul'}...</span>
+                </div>
+              </div>
             )}
 
             {isMyTurn && isSpymaster && game.currentClue && (
-              <p className="text-center text-yellow-400">
-                Esperando a que tus agentes adivinen...
-              </p>
+              <div className="text-center p-4 bg-yellow-500/10 rounded-xl border border-yellow-500/30">
+                <p className="text-yellow-400 flex items-center justify-center gap-2">
+                  <svg className="w-5 h-5 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                  </svg>
+                  Observando a tus agentes...
+                </p>
+                {currentTurnPlayer && (
+                  <p className="text-slate-400 text-sm mt-1">
+                    Turno de: <span className="text-white font-bold">{currentTurnPlayer.name}</span>
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -472,6 +546,18 @@ export default function GameRoom() {
           </div>
         )}
       </div>
+
+      {/* Card Selection Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={confirmDialog.isOpen}
+        title="Confirmar Selección"
+        message="¿Estás seguro de que quieres seleccionar esta carta?"
+        cardWord={confirmDialog.cardWord}
+        onConfirm={handleConfirmGuess}
+        onCancel={handleCancelGuess}
+        confirmText="¡Seleccionar!"
+        cancelText="Cancelar"
+      />
     </main>
   );
 }

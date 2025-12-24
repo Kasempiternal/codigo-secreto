@@ -42,6 +42,12 @@ export interface GameState {
   winner: Team | null;
   createdAt: number;
   lastActivity: number;
+  // Player turn rotation within teams
+  currentPlayerTurn: string | null;  // Player ID whose turn it is to select cards
+  redOperativeOrder: string[];       // Order of red operatives for rotation
+  blueOperativeOrder: string[];      // Order of blue operatives for rotation
+  redOperativeIndex: number;         // Current index in red operative rotation
+  blueOperativeIndex: number;        // Current index in blue operative rotation
 }
 
 // Key card positions - determines which cards belong to which team

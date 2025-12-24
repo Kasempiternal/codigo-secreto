@@ -78,6 +78,12 @@ export function createGame(hostName: string): GameState {
     winner: null,
     createdAt: now,
     lastActivity: now,
+    // Player turn rotation
+    currentPlayerTurn: null,
+    redOperativeOrder: [],
+    blueOperativeOrder: [],
+    redOperativeIndex: 0,
+    blueOperativeIndex: 0,
   };
 }
 
@@ -143,10 +149,28 @@ export function canStartGame(game: GameState): { canStart: boolean; reason?: str
 
 // Start the game
 export function startGame(game: GameState): GameState {
+  // Get operatives for each team and create rotation order
+  const redOperatives = game.players
+    .filter(p => p.team === 'red' && p.role === 'operative')
+    .map(p => p.id);
+  const blueOperatives = game.players
+    .filter(p => p.team === 'blue' && p.role === 'operative')
+    .map(p => p.id);
+
+  // Determine first operative based on starting team
+  const firstOperative = game.startingTeam === 'red'
+    ? redOperatives[0]
+    : blueOperatives[0];
+
   return {
     ...game,
     phase: 'playing',
     lastActivity: Date.now(),
+    redOperativeOrder: redOperatives,
+    blueOperativeOrder: blueOperatives,
+    redOperativeIndex: 0,
+    blueOperativeIndex: 0,
+    currentPlayerTurn: firstOperative || null,
   };
 }
 
@@ -174,12 +198,18 @@ export function giveClue(
     timestamp: Date.now(),
   };
 
+  // Get current operative for this team
+  const operativeOrder = player.team === 'red' ? game.redOperativeOrder : game.blueOperativeOrder;
+  const operativeIndex = player.team === 'red' ? game.redOperativeIndex : game.blueOperativeIndex;
+  const currentOperative = operativeOrder[operativeIndex] || null;
+
   return {
     game: {
       ...game,
       clues: [...game.clues, clue],
       currentClue: clue,
       guessesRemaining: number + 1, // Players can guess one extra
+      currentPlayerTurn: currentOperative,
       lastActivity: Date.now(),
     },
   };
@@ -199,6 +229,12 @@ export function makeGuess(
 
   if (player.team !== game.currentTurn) {
     return { game, result: 'wrong', error: 'No es el turno de tu equipo' };
+  }
+
+  // Check if it's this player's turn to select
+  if (game.currentPlayerTurn && game.currentPlayerTurn !== playerId) {
+    const currentPlayer = game.players.find(p => p.id === game.currentPlayerTurn);
+    return { game, result: 'wrong', error: `Es el turno de ${currentPlayer?.name || 'otro jugador'} para seleccionar` };
   }
 
   if (game.guessesRemaining <= 0) {
@@ -269,6 +305,25 @@ export function makeGuess(
     }
   }
 
+  // Calculate new operative indices and current player turn
+  let newRedOperativeIndex = game.redOperativeIndex;
+  let newBlueOperativeIndex = game.blueOperativeIndex;
+  let newCurrentPlayerTurn: string | null = game.currentPlayerTurn;
+
+  if (endTurn && !winner) {
+    // Switch to other team and advance their operative index
+    const nextTeam = game.currentTurn === 'red' ? 'blue' : 'red';
+    if (nextTeam === 'red') {
+      // Next turn will be red team, advance red operative index
+      newRedOperativeIndex = (game.redOperativeIndex + 1) % game.redOperativeOrder.length;
+      newCurrentPlayerTurn = game.redOperativeOrder[newRedOperativeIndex] || null;
+    } else {
+      // Next turn will be blue team, advance blue operative index
+      newBlueOperativeIndex = (game.blueOperativeIndex + 1) % game.blueOperativeOrder.length;
+      newCurrentPlayerTurn = game.blueOperativeOrder[newBlueOperativeIndex] || null;
+    }
+  }
+
   const newGame: GameState = {
     ...game,
     cards: newCards,
@@ -280,6 +335,9 @@ export function makeGuess(
     winner,
     phase: winner ? 'finished' : game.phase,
     lastActivity: Date.now(),
+    redOperativeIndex: newRedOperativeIndex,
+    blueOperativeIndex: newBlueOperativeIndex,
+    currentPlayerTurn: winner ? null : newCurrentPlayerTurn,
   };
 
   return { game: newGame, result };
@@ -293,13 +351,30 @@ export function endTurn(game: GameState, playerId: string): { game: GameState; e
     return { game, error: 'No puedes terminar el turno' };
   }
 
+  // Calculate new operative indices and current player turn for next team
+  const nextTeam = game.currentTurn === 'red' ? 'blue' : 'red';
+  let newRedOperativeIndex = game.redOperativeIndex;
+  let newBlueOperativeIndex = game.blueOperativeIndex;
+  let newCurrentPlayerTurn: string | null = null;
+
+  if (nextTeam === 'red') {
+    newRedOperativeIndex = (game.redOperativeIndex + 1) % game.redOperativeOrder.length;
+    newCurrentPlayerTurn = game.redOperativeOrder[newRedOperativeIndex] || null;
+  } else {
+    newBlueOperativeIndex = (game.blueOperativeIndex + 1) % game.blueOperativeOrder.length;
+    newCurrentPlayerTurn = game.blueOperativeOrder[newBlueOperativeIndex] || null;
+  }
+
   return {
     game: {
       ...game,
-      currentTurn: game.currentTurn === 'red' ? 'blue' : 'red',
+      currentTurn: nextTeam,
       currentClue: null,
       guessesRemaining: 0,
       lastActivity: Date.now(),
+      redOperativeIndex: newRedOperativeIndex,
+      blueOperativeIndex: newBlueOperativeIndex,
+      currentPlayerTurn: newCurrentPlayerTurn,
     },
   };
 }
@@ -328,5 +403,11 @@ export function resetGame(game: GameState): GameState {
     blueCardsRemaining: keyCard.startingTeam === 'blue' ? 9 : 8,
     winner: null,
     lastActivity: Date.now(),
+    // Reset player turn rotation
+    currentPlayerTurn: null,
+    redOperativeOrder: [],
+    blueOperativeOrder: [],
+    redOperativeIndex: 0,
+    blueOperativeIndex: 0,
   };
 }

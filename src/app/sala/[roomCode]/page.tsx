@@ -61,10 +61,10 @@ export default function GameRoom() {
     showToast('¡Código copiado!', 'success');
   };
 
-  // Share URL
+  // Share URL - points to join page so users only need to enter their name
   const getShareUrl = () => {
     if (typeof window !== 'undefined') {
-      return `${window.location.origin}/sala/${roomCode}`;
+      return `${window.location.origin}/unirse/${roomCode}`;
     }
     return '';
   };

@@ -12,8 +12,9 @@ interface GameBoardProps {
 
 export function GameBoard({ cards, isSpymaster, canGuess, onCardClick }: GameBoardProps) {
   return (
-    <div className="w-full max-w-4xl mx-auto">
-      <div className="grid grid-cols-5 gap-1.5 sm:gap-2 md:gap-3">
+    <div className="w-full max-w-4xl mx-auto px-1 sm:px-0">
+      {/* Mobile-optimized card grid */}
+      <div className="mobile-card-grid">
         {cards.map((card, index) => (
           <GameCard
             key={index}
@@ -26,23 +27,23 @@ export function GameBoard({ cards, isSpymaster, canGuess, onCardClick }: GameBoa
         ))}
       </div>
 
-      {/* Legend for spymasters */}
+      {/* Legend for spymasters - more compact on mobile */}
       {isSpymaster && (
-        <div className="mt-4 flex flex-wrap justify-center gap-3 text-xs sm:text-sm">
+        <div className="mt-3 sm:mt-4 flex flex-wrap justify-center gap-2 sm:gap-3 text-[10px] sm:text-xs md:text-sm">
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-red-500"></div>
-            <span className="text-slate-400">Equipo Rojo</span>
+            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-500"></div>
+            <span className="text-slate-400">Rojo</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-            <span className="text-slate-400">Equipo Azul</span>
+            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-blue-500"></div>
+            <span className="text-slate-400">Azul</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-amber-400"></div>
+            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-amber-400"></div>
             <span className="text-slate-400">Neutral</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded-full bg-slate-900 border border-white"></div>
+            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-slate-900 border border-white"></div>
             <span className="text-slate-400">Asesino</span>
           </div>
         </div>

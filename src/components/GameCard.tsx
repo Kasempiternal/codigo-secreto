@@ -65,29 +65,36 @@ export function GameCard({ card, index, isSpymaster, canGuess, onClick }: GameCa
       onClick={onClick}
       disabled={!canClick}
       className={`
-        game-card relative w-full aspect-[4/3] sm:aspect-[3/2]
-        rounded-lg sm:rounded-xl border-2
-        flex items-center justify-center p-1 sm:p-2
-        font-bold text-xs sm:text-sm md:text-base
-        transition-all duration-200
+        game-card relative w-full aspect-square sm:aspect-[4/3] md:aspect-[3/2]
+        rounded-md sm:rounded-lg md:rounded-xl border sm:border-2
+        flex items-center justify-center
+        font-bold
+        transition-all duration-150
+        touch-feedback
         ${getCardStyles()}
-        ${canClick ? 'cursor-pointer hover:scale-105 hover:shadow-xl' : 'cursor-default'}
+        ${canClick ? 'cursor-pointer active:scale-95 sm:hover:scale-105 sm:hover:shadow-xl' : 'cursor-default'}
         ${card.revealed ? 'opacity-90' : ''}
       `}
     >
       {getSpymasterIndicator()}
 
       <span className={`
-        text-center break-words leading-tight
+        text-center break-words leading-tight px-0.5
         ${card.revealed && card.type === 'assassin' ? 'line-through' : ''}
-      `}>
+      `}
+      style={{
+        fontSize: 'clamp(0.5rem, 2.5vw, 0.875rem)',
+        wordBreak: 'break-word',
+        hyphens: 'auto',
+      }}
+      >
         {card.word}
       </span>
 
       {card.revealed && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           {card.type === 'assassin' && (
-            <svg className="w-8 h-8 sm:w-12 sm:h-12 text-red-500 opacity-80" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6 sm:w-8 sm:h-8 md:w-12 md:h-12 text-red-500 opacity-80" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
             </svg>
           )}

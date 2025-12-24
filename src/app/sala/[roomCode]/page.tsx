@@ -9,6 +9,7 @@ import { ClueInput } from '@/components/ClueInput';
 import { QRCode } from '@/components/QRCode';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { PlayerTurnIndicator } from '@/components/PlayerTurnIndicator';
+import { RulesModal, RulesButton } from '@/components/RulesModal';
 import type { Team, Role } from '@/types/game';
 
 export default function GameRoom() {
@@ -24,6 +25,7 @@ export default function GameRoom() {
     cardIndex: number;
     cardWord: string;
   }>({ isOpen: false, cardIndex: -1, cardWord: '' });
+  const [showRules, setShowRules] = useState(false);
 
   useEffect(() => {
     const storedPlayerId = sessionStorage.getItem('playerId');
@@ -181,7 +183,7 @@ export default function GameRoom() {
   const unassignedPlayers = game.players.filter(p => !p.team);
 
   return (
-    <main className="min-h-screen p-2 sm:p-4">
+    <main className="min-h-screen p-2 sm:p-4 no-bounce safe-area-top safe-area-bottom">
       {/* Toast */}
       {toast && (
         <div className={`
@@ -558,6 +560,12 @@ export default function GameRoom() {
         confirmText="¡Seleccionar!"
         cancelText="Cancelar"
       />
+
+      {/* Rules Modal */}
+      <RulesModal isOpen={showRules} onClose={() => setShowRules(false)} />
+
+      {/* Floating Rules Button - Always visible */}
+      <RulesButton onClick={() => setShowRules(true)} />
     </main>
   );
 }

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { TOTAL_WORDS } from '@/data/words';
+import { RulesModal, RulesButton } from '@/components/RulesModal';
 
 export default function Home() {
   const router = useRouter();
@@ -11,6 +12,7 @@ export default function Home() {
   const [roomCode, setRoomCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showRules, setShowRules] = useState(false);
 
   const handleCreate = async () => {
     if (name.trim().length < 2) {
@@ -84,7 +86,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4">
+    <main className="min-h-screen flex flex-col items-center justify-center p-4 safe-area-top safe-area-bottom">
       {/* Background decoration */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-10 left-10 w-32 h-32 bg-red-500/10 rounded-full blur-3xl"></div>
@@ -285,6 +287,12 @@ export default function Home() {
           Basado en Codenames de Vlaada Chvátil
         </p>
       </div>
+
+      {/* Rules Modal */}
+      <RulesModal isOpen={showRules} onClose={() => setShowRules(false)} />
+
+      {/* Floating Rules Button */}
+      <RulesButton onClick={() => setShowRules(true)} />
     </main>
   );
 }

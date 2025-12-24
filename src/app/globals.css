@@ -162,12 +162,201 @@ html {
   }
 }
 
-/* Mobile optimizations */
-@media (max-width: 640px) {
+/* ========================================
+   MOBILE-FIRST OPTIMIZATIONS
+   ======================================== */
+
+/* Base mobile styles (default) */
+.game-card {
+  font-size: 0.65rem;
+  padding: 0.35rem;
+  min-height: 48px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Prevent double-tap zoom on buttons */
+button, .game-card, a {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Improve touch targets */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Mobile card grid */
+.mobile-card-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  padding: 4px;
+}
+
+/* Extra small phones (< 360px) */
+@media (max-width: 359px) {
+  .game-card {
+    font-size: 0.55rem;
+    padding: 0.25rem;
+    min-height: 40px;
+  }
+
+  .mobile-card-grid {
+    gap: 2px;
+    padding: 2px;
+  }
+}
+
+/* Small phones (360px - 480px) */
+@media (min-width: 360px) and (max-width: 479px) {
+  .game-card {
+    font-size: 0.6rem;
+    padding: 0.3rem;
+    min-height: 44px;
+  }
+
+  .mobile-card-grid {
+    gap: 3px;
+    padding: 3px;
+  }
+}
+
+/* Medium phones (480px - 640px) */
+@media (min-width: 480px) and (max-width: 639px) {
   .game-card {
     font-size: 0.7rem;
-    padding: 0.5rem;
+    padding: 0.4rem;
+    min-height: 50px;
   }
+
+  .mobile-card-grid {
+    gap: 4px;
+    padding: 4px;
+  }
+}
+
+/* Tablets and larger (640px+) */
+@media (min-width: 640px) {
+  .game-card {
+    font-size: 0.8rem;
+    padding: 0.5rem;
+    min-height: 60px;
+  }
+
+  .mobile-card-grid {
+    gap: 6px;
+    padding: 6px;
+  }
+}
+
+/* Large tablets and desktops (768px+) */
+@media (min-width: 768px) {
+  .game-card {
+    font-size: 0.9rem;
+    padding: 0.75rem;
+    min-height: 70px;
+  }
+
+  .mobile-card-grid {
+    gap: 8px;
+    padding: 8px;
+  }
+}
+
+/* Desktop (1024px+) */
+@media (min-width: 1024px) {
+  .game-card {
+    font-size: 1rem;
+    padding: 1rem;
+    min-height: 80px;
+  }
+
+  .mobile-card-grid {
+    gap: 10px;
+    padding: 10px;
+  }
+}
+
+/* Safe area insets for notched phones */
+@supports (padding: max(0px)) {
+  .safe-area-bottom {
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .safe-area-top {
+    padding-top: max(8px, env(safe-area-inset-top));
+  }
+}
+
+/* Landscape mode optimizations */
+@media (max-height: 500px) and (orientation: landscape) {
+  .game-card {
+    font-size: 0.6rem;
+    padding: 0.25rem;
+    min-height: 36px;
+  }
+
+  .mobile-card-grid {
+    gap: 3px;
+    padding: 2px;
+  }
+
+  .landscape-compact {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+}
+
+/* Prevent scroll bounce on iOS */
+.no-bounce {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile-friendly text sizing */
+.mobile-text-xs {
+  font-size: clamp(0.6rem, 2.5vw, 0.75rem);
+}
+
+.mobile-text-sm {
+  font-size: clamp(0.7rem, 3vw, 0.875rem);
+}
+
+.mobile-text-base {
+  font-size: clamp(0.8rem, 3.5vw, 1rem);
+}
+
+.mobile-text-lg {
+  font-size: clamp(0.9rem, 4vw, 1.125rem);
+}
+
+/* Touch feedback */
+.touch-feedback:active {
+  transform: scale(0.95);
+  opacity: 0.9;
+}
+
+/* Smooth scroll snap for mobile panels */
+.snap-x {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.snap-center {
+  scroll-snap-align: center;
+}
+
+/* Hide scrollbar but keep functionality */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Confetti animation for winner */

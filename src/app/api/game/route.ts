@@ -11,6 +11,10 @@ import {
   endTurn,
   resetGame,
   canStartGame,
+  proposeCard,
+  respondToProposal,
+  cancelProposal,
+  rejoinPlayer,
 } from '@/lib/gameLogic';
 import type { ApiResponse, GameState } from '@/types/game';
 
@@ -87,17 +91,26 @@ export async function POST(request: NextRequest) {
           return jsonResponse({ success: false, error: 'Sala no encontrada' }, 404);
         }
 
-        if (game.phase !== 'lobby') {
-          return jsonResponse({ success: false, error: 'La partida ya ha comenzado' }, 400);
-        }
-
         if (game.players.length >= 20) {
           return jsonResponse({ success: false, error: 'Sala llena (máximo 20 jugadores)' }, 400);
         }
 
-        // Check for duplicate names
-        if (game.players.some(p => p.name.toLowerCase() === playerName.trim().toLowerCase())) {
-          return jsonResponse({ success: false, error: 'Ya existe un jugador con ese nombre' }, 400);
+        // Check for existing player with same name (reconnection)
+        const existingPlayer = game.players.find(
+          p => p.name.toLowerCase() === playerName.trim().toLowerCase()
+        );
+
+        if (existingPlayer) {
+          // Allow reconnection - return existing player
+          return jsonResponse({
+            success: true,
+            data: { game, playerId: existingPlayer.id, reconnected: true },
+          });
+        }
+
+        // New player - only allowed in lobby
+        if (game.phase !== 'lobby') {
+          return jsonResponse({ success: false, error: 'La partida ya ha comenzado. Si eras un jugador, usa el mismo nombre para reconectarte.' }, 400);
         }
 
         const { game: updatedGame, player } = addPlayer(game, playerName.trim());
@@ -106,6 +119,30 @@ export async function POST(request: NextRequest) {
         return jsonResponse({
           success: true,
           data: { game: updatedGame, playerId: player.id },
+        });
+      }
+
+      case 'rejoin': {
+        const { roomCode, playerName } = params;
+        if (!roomCode || !playerName) {
+          return jsonResponse({ success: false, error: 'Código de sala y nombre requeridos' }, 400);
+        }
+
+        const game = await gameStore.get(roomCode);
+        if (!game) {
+          return jsonResponse({ success: false, error: 'Sala no encontrada' }, 404);
+        }
+
+        const { game: updatedGame, player, error } = rejoinPlayer(game, playerName.trim());
+        if (error) {
+          return jsonResponse({ success: false, error }, 400);
+        }
+
+        await gameStore.set(roomCode, updatedGame);
+
+        return jsonResponse({
+          success: true,
+          data: { game: updatedGame, playerId: player?.id, reconnected: !!player },
         });
       }
 
@@ -247,6 +284,76 @@ export async function POST(request: NextRequest) {
         const updatedGame = resetGame(game);
         await gameStore.set(roomCode, updatedGame);
 
+        return jsonResponse({ success: true, data: { game: updatedGame } });
+      }
+
+      case 'proposeCard': {
+        const { roomCode, playerId, cardIndex } = params;
+        const game = await gameStore.get(roomCode);
+
+        if (!game) {
+          return jsonResponse({ success: false, error: 'Sala no encontrada' }, 404);
+        }
+
+        if (typeof cardIndex !== 'number' || cardIndex < 0 || cardIndex > 24) {
+          return jsonResponse({ success: false, error: 'Carta inválida' }, 400);
+        }
+
+        const { game: updatedGame, error } = proposeCard(game, playerId, cardIndex);
+        if (error) {
+          return jsonResponse({ success: false, error }, 400);
+        }
+
+        await gameStore.set(roomCode, updatedGame);
+        return jsonResponse({ success: true, data: { game: updatedGame } });
+      }
+
+      case 'respondToProposal': {
+        const { roomCode, playerId, accept } = params;
+        const game = await gameStore.get(roomCode);
+
+        if (!game) {
+          return jsonResponse({ success: false, error: 'Sala no encontrada' }, 404);
+        }
+
+        if (typeof accept !== 'boolean') {
+          return jsonResponse({ success: false, error: 'Respuesta inválida' }, 400);
+        }
+
+        const { game: gameWithResponse, shouldReveal, error } = respondToProposal(game, playerId, accept);
+        if (error) {
+          return jsonResponse({ success: false, error }, 400);
+        }
+
+        // If accepted, automatically make the guess
+        if (shouldReveal && gameWithResponse.cardProposal) {
+          const cardIndex = gameWithResponse.cardProposal.cardIndex;
+          const { game: finalGame, result } = makeGuess(gameWithResponse, playerId, cardIndex);
+          await gameStore.set(roomCode, finalGame);
+          return jsonResponse({
+            success: true,
+            data: { game: finalGame, result, proposalAccepted: true },
+          });
+        }
+
+        await gameStore.set(roomCode, gameWithResponse);
+        return jsonResponse({ success: true, data: { game: gameWithResponse } });
+      }
+
+      case 'cancelProposal': {
+        const { roomCode, playerId } = params;
+        const game = await gameStore.get(roomCode);
+
+        if (!game) {
+          return jsonResponse({ success: false, error: 'Sala no encontrada' }, 404);
+        }
+
+        const { game: updatedGame, error } = cancelProposal(game, playerId);
+        if (error) {
+          return jsonResponse({ success: false, error }, 400);
+        }
+
+        await gameStore.set(roomCode, updatedGame);
         return jsonResponse({ success: true, data: { game: updatedGame } });
       }
 

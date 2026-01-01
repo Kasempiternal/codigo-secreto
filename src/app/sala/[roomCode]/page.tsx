@@ -10,6 +10,9 @@ import { QRCode } from '@/components/QRCode';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { PlayerTurnIndicator } from '@/components/PlayerTurnIndicator';
 import { RulesModal, RulesButton } from '@/components/RulesModal';
+import { TeamIndicator } from '@/components/TeamIndicator';
+import { BossProposalDialog } from '@/components/BossProposalDialog';
+import { SpymasterProposalWarning } from '@/components/SpymasterProposalWarning';
 import type { Team, Role } from '@/types/game';
 
 export default function GameRoom() {
@@ -26,6 +29,11 @@ export default function GameRoom() {
     cardWord: string;
   }>({ isOpen: false, cardIndex: -1, cardWord: '' });
   const [showRules, setShowRules] = useState(false);
+  const [spymasterWarning, setSpymasterWarning] = useState<{
+    isOpen: boolean;
+    cardIndex: number;
+    cardWord: string;
+  }>({ isOpen: false, cardIndex: -1, cardWord: '' });
 
   useEffect(() => {
     const storedPlayerId = sessionStorage.getItem('playerId');
@@ -47,6 +55,9 @@ export default function GameRoom() {
     makeGuess,
     endTurn,
     resetGame,
+    proposeCard,
+    respondToProposal,
+    cancelProposal,
   } = useGame({ roomCode, playerId, pollInterval: 1500 });
 
   // Show toast
@@ -69,10 +80,35 @@ export default function GameRoom() {
     return '';
   };
 
-  // Handle card click - show confirmation dialog
+  // Handle card click - show confirmation dialog or spymaster warning
   const handleCardClick = (cardIndex: number) => {
     if (!game || game.phase !== 'playing') return;
-    if (!player || player.role !== 'operative') return;
+    if (!player) return;
+
+    const card = game.cards[cardIndex];
+    if (card.revealed) return;
+
+    // Spymaster clicking a card - show warning and allow proposal
+    if (player.role === 'spymaster') {
+      if (player.team !== game.currentTurn) {
+        showToast('No es el turno de tu equipo', 'error');
+        return;
+      }
+      if (!game.currentClue) {
+        showToast('Primero debes dar una pista', 'error');
+        return;
+      }
+      // Show spymaster warning
+      setSpymasterWarning({
+        isOpen: true,
+        cardIndex,
+        cardWord: card.word,
+      });
+      return;
+    }
+
+    // Operative clicking
+    if (player.role !== 'operative') return;
     if (player.team !== game.currentTurn) return;
     if (game.guessesRemaining <= 0) return;
     if (game.currentPlayerTurn && game.currentPlayerTurn !== playerId) {
@@ -81,14 +117,56 @@ export default function GameRoom() {
       return;
     }
 
-    const card = game.cards[cardIndex];
-    if (card.revealed) return;
-
     setConfirmDialog({
       isOpen: true,
       cardIndex,
       cardWord: card.word,
     });
+  };
+
+  // Handle spymaster proposal confirmation
+  const handleSpymasterProposal = async () => {
+    const { cardIndex } = spymasterWarning;
+    setSpymasterWarning({ isOpen: false, cardIndex: -1, cardWord: '' });
+
+    try {
+      await proposeCard(cardIndex);
+      showToast('Propuesta enviada a tu equipo', 'info');
+    } catch (err: any) {
+      showToast(err.message || 'Error', 'error');
+    }
+  };
+
+  // Handle proposal response
+  const handleProposalResponse = async (accept: boolean) => {
+    try {
+      const result = await respondToProposal(accept);
+      if (result.proposalAccepted) {
+        if (result.result === 'assassin') {
+          showToast('¡ASESINO! Has perdido la partida', 'error');
+        } else if (result.result === 'correct') {
+          showToast('¡Correcto! Sigue adivinando', 'success');
+        } else if (result.result === 'wrong') {
+          showToast('Era del otro equipo', 'error');
+        } else {
+          showToast('Neutral - Fin del turno', 'info');
+        }
+      } else if (!accept) {
+        showToast('Propuesta rechazada', 'info');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error', 'error');
+    }
+  };
+
+  // Handle proposal cancellation
+  const handleCancelProposal = async () => {
+    try {
+      await cancelProposal();
+      showToast('Propuesta cancelada', 'info');
+    } catch (err: any) {
+      showToast(err.message || 'Error', 'error');
+    }
   };
 
   // Confirm card selection
@@ -177,13 +255,25 @@ export default function GameRoom() {
   const canGuess = game.phase === 'playing' && isMyTurn && player?.role === 'operative' && game.guessesRemaining > 0 && isMyPlayerTurn;
   const canGiveClue = game.phase === 'playing' && isMyTurn && isSpymaster && !game.currentClue;
   const currentTurnPlayer = game.currentPlayerTurn ? game.players.find(p => p.id === game.currentPlayerTurn) : null;
+  // Allow spymaster to click cards (for proposal) when it's their turn and a clue has been given
+  const spymasterCanClick = game.phase === 'playing' && isMyTurn && isSpymaster && game.currentClue && !game.cardProposal;
 
   const redPlayers = game.players.filter(p => p.team === 'red');
   const bluePlayers = game.players.filter(p => p.team === 'blue');
   const unassignedPlayers = game.players.filter(p => !p.team);
 
   return (
-    <main className="min-h-screen p-2 sm:p-4 no-bounce safe-area-top safe-area-bottom">
+    <main className={`min-h-screen p-2 sm:p-4 no-bounce safe-area-top safe-area-bottom ${game.phase === 'playing' && player?.team ? 'pt-16' : ''}`}>
+      {/* Team Indicator Bar - shows during playing phase */}
+      {game.phase === 'playing' && player?.team && (
+        <TeamIndicator
+          team={player.team}
+          role={player.role}
+          isCurrentTurn={isMyTurn}
+          playerName={player.name}
+        />
+      )}
+
       {/* Toast */}
       {toast && (
         <div className={`
@@ -403,8 +493,10 @@ export default function GameRoom() {
             <GameBoard
               cards={game.cards}
               isSpymaster={isSpymaster}
-              canGuess={canGuess}
+              canGuess={canGuess || spymasterCanClick}
               onCardClick={handleCardClick}
+              lastReveal={game.lastReveal}
+              proposedCardIndex={game.cardProposal?.cardIndex ?? null}
             />
 
             {/* Spymaster clue input */}
@@ -560,6 +652,29 @@ export default function GameRoom() {
         confirmText="¡Seleccionar!"
         cancelText="Cancelar"
       />
+
+      {/* Spymaster Proposal Warning */}
+      {spymasterWarning.isOpen && (
+        <SpymasterProposalWarning
+          cardWord={spymasterWarning.cardWord}
+          onConfirm={handleSpymasterProposal}
+          onCancel={() => setSpymasterWarning({ isOpen: false, cardIndex: -1, cardWord: '' })}
+        />
+      )}
+
+      {/* Boss Proposal Dialog - shown to team when spymaster proposes a card */}
+      {game.cardProposal && (
+        <BossProposalDialog
+          proposal={game.cardProposal}
+          players={game.players}
+          currentTeam={game.currentTurn}
+          currentPlayerId={playerId}
+          isSpymaster={isSpymaster}
+          onAccept={() => handleProposalResponse(true)}
+          onReject={() => handleProposalResponse(false)}
+          onCancel={handleCancelProposal}
+        />
+      )}
 
       {/* Rules Modal */}
       <RulesModal isOpen={showRules} onClose={() => setShowRules(false)} />

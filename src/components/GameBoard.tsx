@@ -1,16 +1,18 @@
 'use client';
 
 import { GameCard } from './GameCard';
-import type { Card } from '@/types/game';
+import type { Card, LastReveal } from '@/types/game';
 
 interface GameBoardProps {
   cards: Card[];
   isSpymaster: boolean;
   canGuess: boolean;
   onCardClick: (index: number) => void;
+  lastReveal?: LastReveal | null;
+  proposedCardIndex?: number | null;
 }
 
-export function GameBoard({ cards, isSpymaster, canGuess, onCardClick }: GameBoardProps) {
+export function GameBoard({ cards, isSpymaster, canGuess, onCardClick, lastReveal, proposedCardIndex }: GameBoardProps) {
   return (
     <div className="w-full max-w-4xl mx-auto px-1 sm:px-0">
       {/* Mobile-optimized card grid */}
@@ -23,6 +25,8 @@ export function GameBoard({ cards, isSpymaster, canGuess, onCardClick }: GameBoa
             isSpymaster={isSpymaster}
             canGuess={canGuess}
             onClick={() => onCardClick(index)}
+            lastReveal={lastReveal}
+            isProposed={proposedCardIndex === index}
           />
         ))}
       </div>

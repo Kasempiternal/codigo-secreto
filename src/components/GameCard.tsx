@@ -1,6 +1,7 @@
 'use client';
 
-import type { Card, Team } from '@/types/game';
+import { useEffect, useState } from 'react';
+import type { Card, Team, CardRevealResult } from '@/types/game';
 
 interface GameCardProps {
   card: Card;
@@ -8,9 +9,49 @@ interface GameCardProps {
   isSpymaster: boolean;
   canGuess: boolean;
   onClick: () => void;
+  lastReveal?: { cardIndex: number; result: CardRevealResult; revealedAt: number } | null;
+  isProposed?: boolean; // If this card is currently proposed by boss
 }
 
-export function GameCard({ card, index, isSpymaster, canGuess, onClick }: GameCardProps) {
+export function GameCard({ card, index, isSpymaster, canGuess, onClick, lastReveal, isProposed }: GameCardProps) {
+  const [animationClass, setAnimationClass] = useState('');
+  const [showResultOverlay, setShowResultOverlay] = useState(false);
+
+  // Handle reveal animation
+  useEffect(() => {
+    if (lastReveal && lastReveal.cardIndex === index) {
+      // Trigger animation based on result
+      setShowResultOverlay(true);
+      setAnimationClass(getAnimationClass(lastReveal.result));
+
+      // Clear animation after delay
+      const timer = setTimeout(() => {
+        setAnimationClass('');
+        // Keep overlay a bit longer for assassin
+        if (lastReveal.result !== 'assassin') {
+          setTimeout(() => setShowResultOverlay(false), 500);
+        }
+      }, lastReveal.result === 'assassin' ? 3000 : 1500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [lastReveal, index]);
+
+  const getAnimationClass = (result: CardRevealResult): string => {
+    switch (result) {
+      case 'correct':
+        return 'animate-card-correct';
+      case 'wrong':
+        return 'animate-card-wrong';
+      case 'neutral':
+        return 'animate-card-neutral';
+      case 'assassin':
+        return 'animate-card-assassin';
+      default:
+        return '';
+    }
+  };
+
   const getCardStyles = () => {
     if (card.revealed) {
       switch (card.type) {
@@ -58,6 +99,48 @@ export function GameCard({ card, index, isSpymaster, canGuess, onClick }: GameCa
     );
   };
 
+  const getResultOverlay = () => {
+    if (!showResultOverlay || !lastReveal || lastReveal.cardIndex !== index) return null;
+
+    switch (lastReveal.result) {
+      case 'correct':
+        return (
+          <div className="absolute inset-0 flex items-center justify-center bg-green-500/30 rounded-lg animate-pulse">
+            <svg className="w-8 h-8 sm:w-12 sm:h-12 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+        );
+      case 'wrong':
+        return (
+          <div className="absolute inset-0 flex items-center justify-center bg-orange-500/30 rounded-lg">
+            <svg className="w-8 h-8 sm:w-12 sm:h-12 text-orange-400 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+        );
+      case 'neutral':
+        return (
+          <div className="absolute inset-0 flex items-center justify-center bg-amber-500/30 rounded-lg">
+            <svg className="w-8 h-8 sm:w-12 sm:h-12 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M20 12H4" />
+            </svg>
+          </div>
+        );
+      case 'assassin':
+        return (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 rounded-lg animate-assassin-reveal">
+            <svg className="w-12 h-12 sm:w-16 sm:h-16 text-red-500 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            <span className="text-red-500 font-bold text-sm mt-1 animate-pulse">¡ASESINO!</span>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   const canClick = canGuess && !card.revealed && !isSpymaster;
 
   return (
@@ -74,6 +157,8 @@ export function GameCard({ card, index, isSpymaster, canGuess, onClick }: GameCa
         ${getCardStyles()}
         ${canClick ? 'cursor-pointer active:scale-95 sm:hover:scale-105 sm:hover:shadow-xl' : 'cursor-default'}
         ${card.revealed ? 'opacity-90' : ''}
+        ${animationClass}
+        ${isProposed ? 'ring-4 ring-yellow-400 ring-offset-2 ring-offset-slate-900 animate-pulse' : ''}
       `}
     >
       {getSpymasterIndicator()}
@@ -91,15 +176,25 @@ export function GameCard({ card, index, isSpymaster, canGuess, onClick }: GameCa
         {card.word}
       </span>
 
+      {/* Proposed indicator */}
+      {isProposed && !card.revealed && (
+        <div className="absolute -top-2 -right-2 bg-yellow-400 text-yellow-900 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow-lg">
+          ?
+        </div>
+      )}
+
       {card.revealed && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           {card.type === 'assassin' && (
             <svg className="w-6 h-6 sm:w-8 sm:h-8 md:w-12 md:h-12 text-red-500 opacity-80" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
             </svg>
           )}
         </div>
       )}
+
+      {/* Result overlay */}
+      {getResultOverlay()}
     </button>
   );
 }

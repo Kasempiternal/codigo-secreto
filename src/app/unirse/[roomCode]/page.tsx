@@ -13,6 +13,7 @@ export default function JoinRoom() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showRules, setShowRules] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
 
   const handleJoin = async () => {
     if (name.trim().length < 2) {
@@ -38,7 +39,16 @@ export default function JoinRoom() {
       if (data.success) {
         sessionStorage.setItem('playerId', data.data.playerId);
         sessionStorage.setItem('playerName', name.trim());
-        router.push(`/sala/${roomCode}`);
+
+        // Check if this was a reconnection
+        if (data.data.reconnected) {
+          setReconnecting(true);
+          setTimeout(() => {
+            router.push(`/sala/${roomCode}`);
+          }, 1000);
+        } else {
+          router.push(`/sala/${roomCode}`);
+        }
       } else {
         setError(data.error || 'No se pudo unir a la sala');
       }
@@ -120,12 +130,28 @@ export default function JoinRoom() {
               </div>
             )}
 
+            {reconnecting && (
+              <div className="flex items-center gap-2 text-green-400 text-sm bg-green-500/10 px-4 py-2 rounded-lg animate-pulse">
+                <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                ¡Bienvenido de vuelta! Reconectando a tu equipo...
+              </div>
+            )}
+
             <button
               onClick={handleJoin}
-              disabled={loading}
+              disabled={loading || reconnecting}
               className="w-full py-4 px-6 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg flex items-center justify-center gap-2"
             >
-              {loading ? (
+              {reconnecting ? (
+                <>
+                  <svg className="w-5 h-5 spinner" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  ¡Reconectando!
+                </>
+              ) : loading ? (
                 <>
                   <svg className="w-5 h-5 spinner" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />

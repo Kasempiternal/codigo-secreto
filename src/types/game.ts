@@ -27,6 +27,26 @@ export interface Clue {
   timestamp: number;
 }
 
+// Boss card proposal - when spymaster suggests a card for team to vote on
+export interface CardProposal {
+  cardIndex: number;
+  cardWord: string;
+  proposedBy: string;       // Player ID (spymaster)
+  proposedAt: number;
+  acceptedBy: string[];     // Player IDs who accepted
+  rejectedBy: string[];     // Player IDs who rejected
+}
+
+// Card reveal result for animation purposes
+export type CardRevealResult = 'correct' | 'wrong' | 'neutral' | 'assassin' | null;
+
+// Last card reveal info for animation
+export interface LastReveal {
+  cardIndex: number;
+  result: CardRevealResult;
+  revealedAt: number;
+}
+
 export interface GameState {
   roomCode: string;
   phase: GamePhase;
@@ -48,6 +68,10 @@ export interface GameState {
   blueOperativeOrder: string[];      // Order of blue operatives for rotation
   redOperativeIndex: number;         // Current index in red operative rotation
   blueOperativeIndex: number;        // Current index in blue operative rotation
+  // Boss card proposal system
+  cardProposal: CardProposal | null;
+  // Last reveal for animations
+  lastReveal: LastReveal | null;
 }
 
 // Key card positions - determines which cards belong to which team

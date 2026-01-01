@@ -23,6 +23,10 @@ interface UseGameReturn {
   endTurn: () => Promise<void>;
   resetGame: () => Promise<void>;
   refresh: () => Promise<void>;
+  // Boss proposal actions
+  proposeCard: (cardIndex: number) => Promise<void>;
+  respondToProposal: (accept: boolean) => Promise<{ result?: string; proposalAccepted?: boolean }>;
+  cancelProposal: () => Promise<void>;
 }
 
 export function useGame({ roomCode, playerId, pollInterval = 2000 }: UseGameOptions): UseGameReturn {
@@ -129,6 +133,19 @@ export function useGame({ roomCode, playerId, pollInterval = 2000 }: UseGameOpti
     await fetchGame();
   };
 
+  // Boss proposal actions
+  const proposeCard = async (cardIndex: number) => {
+    await apiAction('proposeCard', { cardIndex });
+  };
+
+  const respondToProposal = async (accept: boolean) => {
+    return await apiAction('respondToProposal', { accept });
+  };
+
+  const cancelProposal = async () => {
+    await apiAction('cancelProposal');
+  };
+
   return {
     game,
     player,
@@ -141,5 +158,8 @@ export function useGame({ roomCode, playerId, pollInterval = 2000 }: UseGameOpti
     endTurn,
     resetGame,
     refresh,
+    proposeCard,
+    respondToProposal,
+    cancelProposal,
   };
 }

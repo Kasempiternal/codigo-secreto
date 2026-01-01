@@ -9,7 +9,9 @@ import type {
   Role,
   GameState,
   KeyCard,
-  Player
+  Player,
+  CardProposal,
+  LastReveal
 } from '@/types/game';
 
 // Generate a random 6-character room code
@@ -84,6 +86,10 @@ export function createGame(hostName: string): GameState {
     blueOperativeOrder: [],
     redOperativeIndex: 0,
     blueOperativeIndex: 0,
+    // Boss card proposal system
+    cardProposal: null,
+    // Last reveal for animations
+    lastReveal: null,
   };
 }
 
@@ -324,6 +330,13 @@ export function makeGuess(
     }
   }
 
+  // Create last reveal info for animations
+  const lastReveal: LastReveal = {
+    cardIndex,
+    result,
+    revealedAt: Date.now(),
+  };
+
   const newGame: GameState = {
     ...game,
     cards: newCards,
@@ -338,6 +351,8 @@ export function makeGuess(
     redOperativeIndex: newRedOperativeIndex,
     blueOperativeIndex: newBlueOperativeIndex,
     currentPlayerTurn: winner ? null : newCurrentPlayerTurn,
+    cardProposal: null, // Clear any proposal after a guess
+    lastReveal,
   };
 
   return { game: newGame, result };
@@ -375,6 +390,8 @@ export function endTurn(game: GameState, playerId: string): { game: GameState; e
       redOperativeIndex: newRedOperativeIndex,
       blueOperativeIndex: newBlueOperativeIndex,
       currentPlayerTurn: newCurrentPlayerTurn,
+      cardProposal: null, // Clear any proposal on turn end
+      lastReveal: null, // Clear last reveal on turn end
     },
   };
 }
@@ -409,5 +426,169 @@ export function resetGame(game: GameState): GameState {
     blueOperativeOrder: [],
     redOperativeIndex: 0,
     blueOperativeIndex: 0,
+    // Reset proposals and reveals
+    cardProposal: null,
+    lastReveal: null,
   };
+}
+
+// Boss proposes a card for team to vote on
+export function proposeCard(
+  game: GameState,
+  playerId: string,
+  cardIndex: number
+): { game: GameState; error?: string } {
+  const player = game.players.find(p => p.id === playerId);
+
+  if (!player || player.role !== 'spymaster') {
+    return { game, error: 'Solo el Jefe de Espías puede proponer cartas' };
+  }
+
+  if (player.team !== game.currentTurn) {
+    return { game, error: 'No es el turno de tu equipo' };
+  }
+
+  if (!game.currentClue) {
+    return { game, error: 'Primero debes dar una pista' };
+  }
+
+  const card = game.cards[cardIndex];
+  if (card.revealed) {
+    return { game, error: 'Esta carta ya fue revelada' };
+  }
+
+  const proposal: CardProposal = {
+    cardIndex,
+    cardWord: card.word,
+    proposedBy: playerId,
+    proposedAt: Date.now(),
+    acceptedBy: [],
+    rejectedBy: [],
+  };
+
+  return {
+    game: {
+      ...game,
+      cardProposal: proposal,
+      lastActivity: Date.now(),
+    },
+  };
+}
+
+// Operative responds to boss proposal
+export function respondToProposal(
+  game: GameState,
+  playerId: string,
+  accept: boolean
+): { game: GameState; shouldReveal: boolean; error?: string } {
+  const player = game.players.find(p => p.id === playerId);
+
+  if (!player || player.role !== 'operative') {
+    return { game, shouldReveal: false, error: 'Solo los Agentes de Campo pueden votar' };
+  }
+
+  if (player.team !== game.currentTurn) {
+    return { game, shouldReveal: false, error: 'No es el turno de tu equipo' };
+  }
+
+  if (!game.cardProposal) {
+    return { game, shouldReveal: false, error: 'No hay propuesta activa' };
+  }
+
+  // Check if already voted
+  if (game.cardProposal.acceptedBy.includes(playerId) || game.cardProposal.rejectedBy.includes(playerId)) {
+    return { game, shouldReveal: false, error: 'Ya has votado' };
+  }
+
+  const newProposal = { ...game.cardProposal };
+  if (accept) {
+    newProposal.acceptedBy = [...newProposal.acceptedBy, playerId];
+  } else {
+    newProposal.rejectedBy = [...newProposal.rejectedBy, playerId];
+  }
+
+  // If accepted by any operative, reveal the card
+  if (accept) {
+    return {
+      game: {
+        ...game,
+        cardProposal: newProposal,
+        lastActivity: Date.now(),
+      },
+      shouldReveal: true,
+    };
+  }
+
+  // If rejected, just update the proposal
+  return {
+    game: {
+      ...game,
+      cardProposal: newProposal,
+      lastActivity: Date.now(),
+    },
+    shouldReveal: false,
+  };
+}
+
+// Cancel boss proposal
+export function cancelProposal(
+  game: GameState,
+  playerId: string
+): { game: GameState; error?: string } {
+  const player = game.players.find(p => p.id === playerId);
+
+  if (!player) {
+    return { game, error: 'Jugador no encontrado' };
+  }
+
+  // Only the proposer (spymaster) or operatives can cancel
+  if (player.team !== game.currentTurn) {
+    return { game, error: 'No es el turno de tu equipo' };
+  }
+
+  if (!game.cardProposal) {
+    return { game, error: 'No hay propuesta activa' };
+  }
+
+  // Only the proposer can cancel
+  if (game.cardProposal.proposedBy !== playerId) {
+    return { game, error: 'Solo quien propuso puede cancelar' };
+  }
+
+  return {
+    game: {
+      ...game,
+      cardProposal: null,
+      lastActivity: Date.now(),
+    },
+  };
+}
+
+// Rejoin existing player (reconnection)
+export function rejoinPlayer(
+  game: GameState,
+  playerName: string
+): { game: GameState; player: Player | null; error?: string } {
+  // Find existing player by name
+  const existingPlayer = game.players.find(
+    p => p.name.toLowerCase() === playerName.toLowerCase()
+  );
+
+  if (existingPlayer) {
+    return {
+      game: {
+        ...game,
+        lastActivity: Date.now(),
+      },
+      player: existingPlayer,
+    };
+  }
+
+  // If not found and game is in lobby, allow joining as new player
+  if (game.phase === 'lobby') {
+    const { game: updatedGame, player } = addPlayer(game, playerName);
+    return { game: updatedGame, player };
+  }
+
+  return { game, player: null, error: 'Jugador no encontrado. La partida ya está en curso.' };
 }

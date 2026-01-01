@@ -493,7 +493,7 @@ export default function GameRoom() {
             <GameBoard
               cards={game.cards}
               isSpymaster={isSpymaster}
-              canGuess={canGuess || spymasterCanClick}
+              canGuess={!!(canGuess || spymasterCanClick)}
               onCardClick={handleCardClick}
               lastReveal={game.lastReveal}
               proposedCardIndex={game.cardProposal?.cardIndex ?? null}
